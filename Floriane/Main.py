@@ -1,15 +1,14 @@
 from pipeline import Preprocessing
+import pandas as pd
+df = pd.read_csv('./Dogs Data/Cleaned_data.csv')
 
-df = Preprocessing.read_csv('cleaned_data.csv')
-
-df = Preprocessing.drop_columns()
+preprocessing = Preprocessing()
+df = preprocessing.drop_columns(df)
 df.info()
 
-df = Preprocessing.ordinal_building_condition()
+df = preprocessing.ordinal_building_condition(df)
 df.info()
 
-df = Preprocessing.ordinal_epc_score()
-df.info()
-
-df = Preprocessing.categorical_encode()
+df = preprocessing.ordinal_epc_score(df)
+df = preprocessing.categorical_encode(df)
 df.info()
