@@ -119,6 +119,9 @@ class Processor_Nad:
 
     def fitLinearRegr(self):
 
+        ############ Fit linear regression
+
+
         X_train=self.X_train_norm
         X_test=self.X_test_norm
         y_train=self.y_train
@@ -158,7 +161,6 @@ class Processor_Nad:
         print("R-squared Score:", r2)
 
             
-    ############ Fit linear regression
            
         
 
