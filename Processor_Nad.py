@@ -5,6 +5,9 @@ import numpy as np
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
 
 
 class Processor_Nad:
@@ -19,15 +22,23 @@ class Processor_Nad:
         self.name_processed_csv=name_processed_csv
         self.name_postcodes_geo=name_postcodes_geo
 
+        self.X_train_norm=None
+        self.X_test_norm=None
+        self.y_train=None
+        self.y_test=None
+
     def process(self):
 
-        ############ Process Floriane's semi-raw file (na values filled)
+        ############ Prepare Floriane's semi-raw file (na values filled) for regression model
 
         # Read raw data
         df = pd.read_csv(self.name_raw_csv)
 
-        # Drop url, locality columns
-        df = df.drop(columns=["id","url","locality","MunicipalityCleanName"], axis=1)
+        # Drop url, locality columns, and price per m2 !!!!!!!!!!!!!!!!!!!!
+        df = df.drop(columns=["id","url","locality","MunicipalityCleanName", "price_square_meter"], axis=1)
+        #df = df.drop(columns=["id","url","locality","MunicipalityCleanName", "price_square_meter","province","region"], axis=1)
+        #df = df.drop(columns=["id","url","locality","MunicipalityCleanName", "price_square_meter","province","region", "hasGarden", "type"], axis=1)
+
 
         #print(df['postCode'].nunique())
 
@@ -71,11 +82,10 @@ class Processor_Nad:
         df['eScore'] = df['epcScore'].map(score_map)
         df = df.drop(columns=["epcScore"], axis=1)
 
-        df.info()
-    
         # Encode categorical features: type, subtype, province, region - maybe need to drop province, region ?????
         encoder = OneHotEncoder(sparse_output=False).set_output(transform="pandas")
-        for cat_par in (["type", "subtype", "province", "region"]):
+        for cat_par in (["type", "subtype", "province", "region"]): # !!!!!!!!!!!!!!!!
+        #for cat_par in (["subtype"]):    
             new_cols_df = encoder.fit_transform(df[[cat_par]])
             df = pd.concat([df, new_cols_df], axis=1).drop([cat_par], axis=1)
 
@@ -87,35 +97,73 @@ class Processor_Nad:
         X = df.drop('price', axis=1) 
         y = df['price']
         X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=41, test_size=0.2) # 20% of rows will go to the testing sample, 80% to the training
-        # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # Titanic tutorial why 41 or 42 ???????
-        print("Shape X_train, X_test, y_train, y_shape: ", type(X_train), X_test.shape, type(y_train), y_test.shape)
+        print("Shape X_train, X_test, y_train, y_shape: ", X_train.shape, X_test.shape, y_train.shape, y_test.shape)
 
         # Get mean and standard deviation from training set (per feature) and normalize training and testing sets using these values for the training set
-        for idx, name in enumerate(list(X_train.columns.values)):
-            print(f"Training set: '{name}' has mean {X_train[name].mean():.2f} and standard deviation {X_train[name].std():.2f}")
-            print(f"Testing set: '{name}' has mean {X_test[name].mean():.2f} and standard deviation {X_test[name].std():.2f}")
-        print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        #for idx, name in enumerate(list(X_train.columns.values)):
+        #    print(f"Training set: '{name}' has mean {X_train[name].mean():.2f} and standard deviation {X_train[name].std():.2f}")
+        #    print(f"Testing set: '{name}' has mean {X_test[name].mean():.2f} and standard deviation {X_test[name].std():.2f}")
+        #print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
         X_train_norm = (X_train - X_train.mean()) / X_train.std()  
         X_test_norm = (X_test - X_train.mean()) / X_train.std()
         # --- To check that normalisation of training set was good, should get mean=0 , std=1 for all columns of the training set below
         # (and nearly these values for the testing set)
-        for idx, name in enumerate(list(X_train.columns.values)):
-            print(f"Training set '{name}' has mean {X_train_norm[name].mean():.2f} and standard deviation {X_train_norm[name].std():.2f}") 
-            print(f"Testing set: '{name}' has mean {X_test_norm[name].mean():.2f} and standard deviation {X_test_norm[name].std():.2f}")
+        #for idx, name in enumerate(list(X_train.columns.values)):
+        #    print(f"Training set '{name}' has mean {X_train_norm[name].mean():.2f} and standard deviation {X_train_norm[name].std():.2f}") 
+        #    print(f"Testing set: '{name}' has mean {X_test_norm[name].mean():.2f} and standard deviation {X_test_norm[name].std():.2f}")
 
-        #scaler = StandardScaler()
-        #data[['standardized_column']] = scaler.fit_transform(data[['numeric_column']])
+        self.X_train_norm=X_train_norm
+        self.X_test_norm=X_test_norm
+        self.y_train=y_train
+        self.y_test=y_test
 
-        #from sklearn.preprocessing import StandardScaler
-        #scaler = StandardScaler()
-        #X_scaled = scaler.fit_transform(X)
+    def fitLinearRegr(self):
 
+        X_train=self.X_train_norm
+        X_test=self.X_test_norm
+        y_train=self.y_train
+        y_test=self.y_test
 
-        #df.info()
+        # Train the model
+        model = LinearRegression()
+        model.fit(X_train, y_train)
+
+        # print model coeff-s
+        for i in range(0, len(model.coef_)):
+            print(model.feature_names_in_[i], model.coef_[i])
+        print("Model intercept:", model.intercept_)
+
+        # Use the model
+        y_pred = model.predict(X_test)
+
+        prices_pred_df= pd.DataFrame({'Actual': y_test, 'Predicted': y_pred})
+        print(prices_pred_df)
+
+        mae = mean_absolute_error(y_test, y_pred)
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+
+        print("Mean Absolute Error (MAE):", mae)
+        print("Mean Squared Error (MSE):", mse)
+        print("R-squared Score:", r2)
+
+        y_pred = model.predict(X_train)
+
+        mae = mean_absolute_error(y_train, y_pred)
+        mse = mean_squared_error(y_train, y_pred)
+        r2 = r2_score(y_train, y_pred) 
+
+        print("Mean Absolute Error (MAE):", mae)
+        print("Mean Squared Error (MSE):", mse)
+        print("R-squared Score:", r2)
+
             
+    ############ Fit linear regression
+           
         
 
 if __name__ == "__main__":
     processor=Processor_Nad("./Dogs Data/Cleaned_data.csv", "./Data/belgian-cities-geocoded.csv", "./Data/Processed_data.csv")
     processor.process()
+    processor.fitLinearRegr()
             
