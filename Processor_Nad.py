@@ -6,7 +6,10 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
+from sklearn.preprocessing import PolynomialFeatures
 
 
 
@@ -38,17 +41,17 @@ class Processor_Nad:
 
         # Drop url, locality columns, and price per m2 !!!!!!!!!!!!!!!!!!!!
         df = df.drop(columns=["id","url","locality","MunicipalityCleanName", "price_square_meter"], axis=1)
-        #df = df.drop(columns=["id","url","locality","MunicipalityCleanName", "price_square_meter","hasGarden","type","region", "province"], axis=1)
- 
+        #df = df.drop(columns=["gardenSurface","hasGarden","type","subtype","region", "province","postCode"], axis=1)
+        df = df.drop(columns=["hasGarden","type","region","postCode"], axis=1)
+
         #print(df['postCode'].nunique())
 
         # Replace postal code with latitude, longitude from external csv file 
-        df_postcode=pd.read_csv(self.name_postcodes_geo)
+        """ df_postcode=pd.read_csv(self.name_postcodes_geo)
         df_postcode = df_postcode.drop_duplicates(subset='postCode', keep='first') # remove duplicate postal codes, only keep first row (first set of coords)
         df_postcode.astype({'postCode': 'int64'})
-        #df_postcode.info()
         df = pd.merge(df, df_postcode[['postCode','lat', 'lng']], on='postCode', how='left')
-        df = df.drop(columns=["postCode"], axis=1)
+        df = df.drop(columns=["postCode"], axis=1) """
 
         # Map building condition categories to numerical values
         cond_map = {
@@ -81,9 +84,9 @@ class Processor_Nad:
 
         # Encode categorical features: type, subtype, province, region - maybe need to drop province, region ?????
         encoder = OneHotEncoder(sparse_output=False).set_output(transform="pandas")
-        for cat_par in (["type", "subtype", "province", "region"]): # !!!!!!!!!!!!!!!!
-        #for cat_par in (["subtype","province"]): # !!!!!!!!!!!!!!!!
-        #for cat_par in (["subtype"]):    
+        #for cat_par in (["type", "subtype", "province", "region"]): # !!!!!!!!!!!!!!!!
+        for cat_par in (["subtype","province"]): # !!!!!!!!!!!!!!!!
+        #for cat_par in (["province"]):    
             new_cols_df = encoder.fit_transform(df[[cat_par]])
             df = pd.concat([df, new_cols_df], axis=1).drop([cat_par], axis=1)
 
@@ -91,7 +94,7 @@ class Processor_Nad:
         #df_processed=df.to_csv(self.name_processed_csv, encoding='utf-8', index=False)
         #df.info()
         
-        # Split into trainig and testing: Jean  - do we have to predict price or price per m2 ????????????
+        # Split into trainig and testing
         X = df.drop('price', axis=1) 
         y = df['price']
         X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=41, test_size=0.2) # 20% of rows will go to the testing sample, 80% to the training
@@ -159,6 +162,12 @@ class Processor_Nad:
         print("Mean Absolute Error (MAE) train set:", mae_train)
         print("R-squared Score train set:", r2_train)
 
+        ##############################
+
+        #print( f'{(r2_test-0.403):.3f} {(r2_train-0.416):.3f} {round(mae_test-104632)} {round(mae_train-104301)}')
+        print( f'{r2_test:.3f} {r2_train:.3f} {round(mae_test)} {round(mae_train)}')
+        
+
         # Make scatter plot to see goodness of the fit
 
         """ ax = prices_test_pred_df.plot.scatter( x='actual price for test set', y='predicted price for test set',
@@ -193,7 +202,7 @@ class Processor_Nad:
         # For slope 1 and intercept 0 (y = x)
         plt.plot([xmin, xmax], [xmin, xmax], color='black', linestyle='-',  lw=1, label='predicted = actual')
         plt.legend()
-        ax.set_title(f'Model: Linear regression,\n N_params: 13[14], N_rows: 41726, N_test_frac: 0.2,\n R2_test: {r2_test:.3f}, R2_train: {r2_train:.3f},\n MAE_test: {round(mae_test)}, MAE_train: {round(mae_train)}', 
+        ax.set_title(f'Model: Linear regression,\n N_params: 9, N_rows: 41726, N_test_frac: 0.2,\n R2_test: {r2_test:.3f}, R2_train: {r2_train:.3f},\n MAE_test: {round(mae_test)}, MAE_train: {round(mae_train)}', 
                 fontsize=7,           # Font size
                 color='green',       # Font color
                 #fontname='Arial',      # Font family
@@ -203,12 +212,300 @@ class Processor_Nad:
         plt.show()
 
 
+    def fitRandomForest(self):
 
+        ############ Fit Random Forest
+
+
+        X_train=self.X_train_norm
+        X_test=self.X_test_norm
+        y_train=self.y_train
+        y_test=self.y_test
+
+        # Train the model
+        n_est=5 # !!!!!!!!!!!!!!!!
+        model = RandomForestRegressor(n_estimators=n_est, random_state=42)
+        model.fit(X_train, y_train)
+
+
+        # print model coeff-s
+        #for i in range(0, len(model.coef_)):
+        #    print(model.feature_names_in_[i], model.coef_[i])
+        #print("Model intercept:", model.intercept_)
+
+        # Use the model on the testing set
+
+        y_test_pred = model.predict(X_test)
+        prices_test_pred_df= pd.DataFrame({'actual price (EUR)': y_test, 'predicted price (EUR)': y_test_pred})
+        #print(prices_test_pred_df)
+ 
+        mae_test = mean_absolute_error(y_test, y_test_pred)
+        r2_test = r2_score(y_test, y_test_pred)
+
+        print("Mean Absolute Error (MAE) test set:", mae_test)
+        print("R-squared Score test set:", r2_test)
+
+        # Use the model on the training set
         
+        y_train_pred = model.predict(X_train)
+        prices_train_pred_df= pd.DataFrame({'actual price (EUR)': y_train, 'predicted price (EUR)': y_train_pred})
+        #print(prices_train_pred_df)
+ 
+        mae_train = mean_absolute_error(y_train, y_train_pred)
+        r2_train = r2_score(y_train, y_train_pred)
+
+        print("Mean Absolute Error (MAE) train set:", mae_train)
+        print("R-squared Score train set:", r2_train)
+
+        ##############################
+
+        #print( f'{(r2_test-0.403):.3f} {(r2_train-0.416):.3f} {round(mae_test-104632)} {round(mae_train-104301)}')
+        print( f'{r2_test:.3f} {r2_train:.3f} {round(mae_test)} {round(mae_train)}')
         
+
+        # Make scatter plot to see goodness of the fit
+
+        """ ax = prices_test_pred_df.plot.scatter( x='actual price for test set', y='predicted price for test set',
+                                                marker='o',      # Marker type, e.g., 'o', 'x', '^', etc.
+                                                color='blue',     # Marker color, e.g., 'red', 'blue', '#123456'
+                                                s=10           # Marker size (optional)
+                                )
+        ax=prices_train_pred_df.plot.scatter( x='actual price for training set', y='predicted price for training set',
+                                                marker='o',      # Marker type, e.g., 'o', 'x', '^', etc.
+                                                color='yellow',     # Marker color, e.g., 'red', 'blue', '#123456'
+                                                s=10            # Marker size (optional)
+                                ) """
+        
+        df1 = prices_train_pred_df.copy()
+        df2 = prices_test_pred_df.copy()
+        df1['Dataset:'] = 'training'
+        df2['Dataset:'] = 'test'        
+        df_combined = pd.concat([df1, df2])
+        custom_markers = {'training': '+', 'test': 'x'}         # Circle for A, square for B
+        custom_palette = {'training': 'blue', 'test': 'red'}    # Red for A, blue for B
+        ax= sns.scatterplot(
+            data=df_combined,
+            x='actual price (EUR)', 
+            y='predicted price (EUR)',
+            style='Dataset:',         # Different marker for each DataFrame
+            hue='Dataset:',            # Different color for each DataFrame
+            palette=custom_palette,
+            markers=custom_markers,
+            s=15
+        )
+        xmin, xmax = plt.xlim()
+        # For slope 1 and intercept 0 (y = x)
+        plt.plot([xmin, xmax], [xmin, xmax], color='black', linestyle='-',  lw=1, label='predicted = actual')
+        plt.legend()
+        ax.set_title(f'Model: Random forest (n_estimators={n_est}),\n N_params: 9, N_rows: 41726, N_test_frac: 0.2,\n R2_test: {r2_test:.3f}, R2_train: {r2_train:.3f},\n MAE_test: {round(mae_test)}, MAE_train: {round(mae_train)}', 
+                fontsize=7,           # Font size
+                color='green',       # Font color
+                #fontname='Arial',      # Font family
+                fontstyle='italic')    # Font style (optional, e.g., 'italic')
+                #fontweight='bold'  )
+
+        plt.show()
+
+
+    def fitGradientBoosting(self):
+
+        ############ Fit Gradient Boosting !!!!!!! Takes too long !!!!!!!!!!!!!
+
+
+        X_train=self.X_train_norm
+        X_test=self.X_test_norm
+        y_train=self.y_train
+        y_test=self.y_test
+
+        # Train the model
+        n_est=10 # !!!!!!!!!!!!!!!! too slow for  100
+        model = GradientBoostingClassifier(learning_rate=0.1, n_estimators=n_est, max_depth=3)
+        model.fit(X_train, y_train)
+
+
+        # print model coeff-s
+        #for i in range(0, len(model.coef_)):
+        #    print(model.feature_names_in_[i], model.coef_[i])
+        #print("Model intercept:", model.intercept_)
+
+        # Use the model on the testing set
+
+        y_test_pred = model.predict(X_test)
+        prices_test_pred_df= pd.DataFrame({'actual price (EUR)': y_test, 'predicted price (EUR)': y_test_pred})
+        #print(prices_test_pred_df)
+ 
+        mae_test = mean_absolute_error(y_test, y_test_pred)
+        r2_test = r2_score(y_test, y_test_pred)
+
+        print("Mean Absolute Error (MAE) test set:", mae_test)
+        print("R-squared Score test set:", r2_test)
+
+        # Use the model on the training set
+        
+        y_train_pred = model.predict(X_train)
+        prices_train_pred_df= pd.DataFrame({'actual price (EUR)': y_train, 'predicted price (EUR)': y_train_pred})
+        #print(prices_train_pred_df)
+ 
+        mae_train = mean_absolute_error(y_train, y_train_pred)
+        r2_train = r2_score(y_train, y_train_pred)
+
+        print("Mean Absolute Error (MAE) train set:", mae_train)
+        print("R-squared Score train set:", r2_train)
+
+        ##############################
+
+        #print( f'{(r2_test-0.403):.3f} {(r2_train-0.416):.3f} {round(mae_test-104632)} {round(mae_train-104301)}')
+        print( f'{r2_test:.3f} {r2_train:.3f} {round(mae_test)} {round(mae_train)}')
+        
+
+        # Make scatter plot to see goodness of the fit
+
+        """ ax = prices_test_pred_df.plot.scatter( x='actual price for test set', y='predicted price for test set',
+                                                marker='o',      # Marker type, e.g., 'o', 'x', '^', etc.
+                                                color='blue',     # Marker color, e.g., 'red', 'blue', '#123456'
+                                                s=10           # Marker size (optional)
+                                )
+        ax=prices_train_pred_df.plot.scatter( x='actual price for training set', y='predicted price for training set',
+                                                marker='o',      # Marker type, e.g., 'o', 'x', '^', etc.
+                                                color='yellow',     # Marker color, e.g., 'red', 'blue', '#123456'
+                                                s=10            # Marker size (optional)
+                                ) """
+        
+        df1 = prices_train_pred_df.copy()
+        df2 = prices_test_pred_df.copy()
+        df1['Dataset:'] = 'training'
+        df2['Dataset:'] = 'test'        
+        df_combined = pd.concat([df1, df2])
+        custom_markers = {'training': '+', 'test': 'x'}         # Circle for A, square for B
+        custom_palette = {'training': 'blue', 'test': 'red'}    # Red for A, blue for B
+        ax= sns.scatterplot(
+            data=df_combined,
+            x='actual price (EUR)', 
+            y='predicted price (EUR)',
+            style='Dataset:',         # Different marker for each DataFrame
+            hue='Dataset:',            # Different color for each DataFrame
+            palette=custom_palette,
+            markers=custom_markers,
+            s=15
+        )
+        xmin, xmax = plt.xlim()
+        # For slope 1 and intercept 0 (y = x)
+        plt.plot([xmin, xmax], [xmin, xmax], color='black', linestyle='-',  lw=1, label='predicted = actual')
+        plt.legend()
+        ax.set_title(f'Model: Gradient boosting (n_estimators={n_est}),\n N_params: 9, N_rows: 41726, N_test_frac: 0.2,\n R2_test: {r2_test:.3f}, R2_train: {r2_train:.3f},\n MAE_test: {round(mae_test)}, MAE_train: {round(mae_train)}', 
+                fontsize=7,           # Font size
+                color='green',       # Font color
+                #fontname='Arial',      # Font family
+                fontstyle='italic')    # Font style (optional, e.g., 'italic')
+                #fontweight='bold'  )
+
+        plt.show()    
+
+    def fitPolynomialRegression(self):
+
+        ############ Fit Polynomial regression
+
+
+        X_train=self.X_train_norm
+        X_test=self.X_test_norm
+        y_train=self.y_train
+        y_test=self.y_test
+
+        # Train the model
+        degr=2 # 3 and higher -takes too long!!!!!!!!!!!!!!!!!
+        poly = PolynomialFeatures(degree=degr, include_bias=False)  # degree=2 for quadratic, change as needed
+        X_poly = poly.fit_transform(X_train)
+        model = LinearRegression()
+        model.fit(X_poly, y_train)
+
+        print("Here!")
+ 
+        # print model coeff-s
+        #for i in range(0, len(model.coef_)):
+        #    print(model.feature_names_in_[i], model.coef_[i])
+        #print("Model intercept:", model.intercept_)
+
+        # Use the model on the testing set
+
+        y_test_pred = model.predict(poly.fit_transform(X_test))
+        prices_test_pred_df= pd.DataFrame({'actual price (EUR)': y_test, 'predicted price (EUR)': y_test_pred})
+        #print(prices_test_pred_df)
+ 
+        mae_test = mean_absolute_error(y_test, y_test_pred)
+        r2_test = r2_score(y_test, y_test_pred)
+
+        print("Mean Absolute Error (MAE) test set:", mae_test)
+        print("R-squared Score test set:", r2_test)
+
+        # Use the model on the training set
+        
+        y_train_pred = model.predict(poly.fit_transform(X_train))
+        prices_train_pred_df= pd.DataFrame({'actual price (EUR)': y_train, 'predicted price (EUR)': y_train_pred})
+        #print(prices_train_pred_df)
+ 
+        mae_train = mean_absolute_error(y_train, y_train_pred)
+        r2_train = r2_score(y_train, y_train_pred)
+
+        print("Mean Absolute Error (MAE) train set:", mae_train)
+        print("R-squared Score train set:", r2_train)
+
+        ##############################
+
+        #print( f'{(r2_test-0.403):.3f} {(r2_train-0.416):.3f} {round(mae_test-104632)} {round(mae_train-104301)}')
+        print( f'{r2_test:.3f} {r2_train:.3f} {round(mae_test)} {round(mae_train)}')
+        
+
+        # Make scatter plot to see goodness of the fit
+
+        """ ax = prices_test_pred_df.plot.scatter( x='actual price for test set', y='predicted price for test set',
+                                                marker='o',      # Marker type, e.g., 'o', 'x', '^', etc.
+                                                color='blue',     # Marker color, e.g., 'red', 'blue', '#123456'
+                                                s=10           # Marker size (optional)
+                                )
+        ax=prices_train_pred_df.plot.scatter( x='actual price for training set', y='predicted price for training set',
+                                                marker='o',      # Marker type, e.g., 'o', 'x', '^', etc.
+                                                color='yellow',     # Marker color, e.g., 'red', 'blue', '#123456'
+                                                s=10            # Marker size (optional)
+                                ) """
+        
+        df1 = prices_train_pred_df.copy()
+        df2 = prices_test_pred_df.copy()
+        df1['Dataset:'] = 'training'
+        df2['Dataset:'] = 'test'        
+        df_combined = pd.concat([df1, df2])
+        custom_markers = {'training': '+', 'test': 'x'}         # Circle for A, square for B
+        custom_palette = {'training': 'blue', 'test': 'red'}    # Red for A, blue for B
+        ax= sns.scatterplot(
+            data=df_combined,
+            x='actual price (EUR)', 
+            y='predicted price (EUR)',
+            style='Dataset:',         # Different marker for each DataFrame
+            hue='Dataset:',            # Different color for each DataFrame
+            palette=custom_palette,
+            markers=custom_markers,
+            s=15
+        )
+        xmin, xmax = plt.xlim()
+        # For slope 1 and intercept 0 (y = x)
+        plt.plot([xmin, xmax], [xmin, xmax], color='black', linestyle='-',  lw=1, label='predicted = actual')
+        plt.legend()
+        ax.set_title(f'Model: Polynomial regression (degree={degr}),\n N_params: 9, N_rows: 41726, N_test_frac: 0.2,\n R2_test: {r2_test:.3f}, R2_train: {r2_train:.3f},\n MAE_test: {round(mae_test)}, MAE_train: {round(mae_train)}', 
+                fontsize=7,           # Font size
+                color='green',       # Font color
+                #fontname='Arial',      # Font family
+                fontstyle='italic')    # Font style (optional, e.g., 'italic')
+                #fontweight='bold'  )
+
+        plt.show()    
+
+
 
 if __name__ == "__main__":
     processor=Processor_Nad("./Dogs Data/Cleaned_data.csv", "./Data/belgian-cities-geocoded.csv", "./Data/Processed_data.csv")
     processor.process()
-    processor.fitLinearRegr()
+    #processor.fitLinearRegr()
+    #processor.fitRandomForest()
+    #processor.fitGradientBoosting()
+    processor.fitPolynomialRegression()
+
             
