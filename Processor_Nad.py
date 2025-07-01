@@ -34,25 +34,21 @@ class Processor_Nad:
         # Read raw data
         df = pd.read_csv(self.name_raw_csv)
 
+        print(len(df))
+
         # Drop url, locality columns, and price per m2 !!!!!!!!!!!!!!!!!!!!
         df = df.drop(columns=["id","url","locality","MunicipalityCleanName", "price_square_meter"], axis=1)
-        #df = df.drop(columns=["id","url","locality","MunicipalityCleanName", "price_square_meter","province","region"], axis=1)
-        #df = df.drop(columns=["id","url","locality","MunicipalityCleanName", "price_square_meter","province","region", "hasGarden", "type"], axis=1)
-
-
+        #df = df.drop(columns=["id","url","locality","MunicipalityCleanName", "price_square_meter","hasGarden","type","region", "province"], axis=1)
+ 
         #print(df['postCode'].nunique())
 
-        # Replace postal code with latitude, longitude from external csv file - maybe need to leave only one row per postal code
-        # in the postal code file before merging ??? And for cases of two postal codes per row - leave only one, but make sure the second one
-        # is also given in a separate row, if with same coords - ok; in the end check one postal code per row should be present,
-        # allowing  same coord-s per different postcal codes ?????
+        # Replace postal code with latitude, longitude from external csv file 
         df_postcode=pd.read_csv(self.name_postcodes_geo)
+        df_postcode = df_postcode.drop_duplicates(subset='postCode', keep='first') # remove duplicate postal codes, only keep first row (first set of coords)
         df_postcode.astype({'postCode': 'int64'})
         #df_postcode.info()
         df = pd.merge(df, df_postcode[['postCode','lat', 'lng']], on='postCode', how='left')
         df = df.drop(columns=["postCode"], axis=1)
-
-        print(df['epcScore'].unique())
 
         # Map building condition categories to numerical values
         cond_map = {
@@ -64,7 +60,6 @@ class Processor_Nad:
         'AS_NEW': 6,
         }
         df['bldCondition'] = df['buildingCondition'].map(cond_map)
-        #print(df[(df['condition']==2) & (df['buildingCondition'] == 'TO_RESTORE') ])
         df = df.drop(columns=["buildingCondition"], axis=1)
 
         # Map epcScore categories to numerical values
@@ -82,9 +77,12 @@ class Processor_Nad:
         df['eScore'] = df['epcScore'].map(score_map)
         df = df.drop(columns=["epcScore"], axis=1)
 
+        print(df.info())
+
         # Encode categorical features: type, subtype, province, region - maybe need to drop province, region ?????
         encoder = OneHotEncoder(sparse_output=False).set_output(transform="pandas")
         for cat_par in (["type", "subtype", "province", "region"]): # !!!!!!!!!!!!!!!!
+        #for cat_par in (["subtype","province"]): # !!!!!!!!!!!!!!!!
         #for cat_par in (["subtype"]):    
             new_cols_df = encoder.fit_transform(df[[cat_par]])
             df = pd.concat([df, new_cols_df], axis=1).drop([cat_par], axis=1)
@@ -92,7 +90,7 @@ class Processor_Nad:
         # Save to a new csv file
         #df_processed=df.to_csv(self.name_processed_csv, encoding='utf-8', index=False)
         #df.info()
-    
+        
         # Split into trainig and testing: Jean  - do we have to predict price or price per m2 ????????????
         X = df.drop('price', axis=1) 
         y = df['price']
@@ -117,6 +115,7 @@ class Processor_Nad:
         self.y_train=y_train
         self.y_test=y_test
 
+
     def fitLinearRegr(self):
 
         ############ Fit linear regression
@@ -132,36 +131,80 @@ class Processor_Nad:
         model.fit(X_train, y_train)
 
         # print model coeff-s
-        for i in range(0, len(model.coef_)):
-            print(model.feature_names_in_[i], model.coef_[i])
-        print("Model intercept:", model.intercept_)
+        #for i in range(0, len(model.coef_)):
+        #    print(model.feature_names_in_[i], model.coef_[i])
+        #print("Model intercept:", model.intercept_)
 
-        # Use the model
-        y_pred = model.predict(X_test)
+        # Use the model on the testing set
 
-        prices_pred_df= pd.DataFrame({'Actual': y_test, 'Predicted': y_pred})
-        print(prices_pred_df)
+        y_test_pred = model.predict(X_test)
+        prices_test_pred_df= pd.DataFrame({'actual price (EUR)': y_test, 'predicted price (EUR)': y_test_pred})
+        #print(prices_test_pred_df)
+ 
+        mae_test = mean_absolute_error(y_test, y_test_pred)
+        r2_test = r2_score(y_test, y_test_pred)
 
-        mae = mean_absolute_error(y_test, y_pred)
-        mse = mean_squared_error(y_test, y_pred)
-        r2 = r2_score(y_test, y_pred)
+        print("Mean Absolute Error (MAE) test set:", mae_test)
+        print("R-squared Score test set:", r2_test)
 
-        print("Mean Absolute Error (MAE):", mae)
-        print("Mean Squared Error (MSE):", mse)
-        print("R-squared Score:", r2)
+        # Use the model on the training set
+        
+        y_train_pred = model.predict(X_train)
+        prices_train_pred_df= pd.DataFrame({'actual price (EUR)': y_train, 'predicted price (EUR)': y_train_pred})
+        #print(prices_train_pred_df)
+ 
+        mae_train = mean_absolute_error(y_train, y_train_pred)
+        r2_train = r2_score(y_train, y_train_pred)
 
-        y_pred = model.predict(X_train)
+        print("Mean Absolute Error (MAE) train set:", mae_train)
+        print("R-squared Score train set:", r2_train)
 
-        mae = mean_absolute_error(y_train, y_pred)
-        mse = mean_squared_error(y_train, y_pred)
-        r2 = r2_score(y_train, y_pred) 
+        # Make scatter plot to see goodness of the fit
 
-        print("Mean Absolute Error (MAE):", mae)
-        print("Mean Squared Error (MSE):", mse)
-        print("R-squared Score:", r2)
+        """ ax = prices_test_pred_df.plot.scatter( x='actual price for test set', y='predicted price for test set',
+                                                marker='o',      # Marker type, e.g., 'o', 'x', '^', etc.
+                                                color='blue',     # Marker color, e.g., 'red', 'blue', '#123456'
+                                                s=10           # Marker size (optional)
+                                )
+        ax=prices_train_pred_df.plot.scatter( x='actual price for training set', y='predicted price for training set',
+                                                marker='o',      # Marker type, e.g., 'o', 'x', '^', etc.
+                                                color='yellow',     # Marker color, e.g., 'red', 'blue', '#123456'
+                                                s=10            # Marker size (optional)
+                                ) """
+        
+        df1 = prices_train_pred_df.copy()
+        df2 = prices_test_pred_df.copy()
+        df1['Dataset:'] = 'training'
+        df2['Dataset:'] = 'test'        
+        df_combined = pd.concat([df1, df2])
+        custom_markers = {'training': '+', 'test': 'x'}         # Circle for A, square for B
+        custom_palette = {'training': 'blue', 'test': 'red'}    # Red for A, blue for B
+        ax= sns.scatterplot(
+            data=df_combined,
+            x='actual price (EUR)', 
+            y='predicted price (EUR)',
+            style='Dataset:',         # Different marker for each DataFrame
+            hue='Dataset:',            # Different color for each DataFrame
+            palette=custom_palette,
+            markers=custom_markers,
+            s=15
+        )
+        xmin, xmax = plt.xlim()
+        # For slope 1 and intercept 0 (y = x)
+        plt.plot([xmin, xmax], [xmin, xmax], color='black', linestyle='-',  lw=1, label='predicted = actual')
+        plt.legend()
+        ax.set_title(f'Model: Linear regression,\n N_params: 13[14], N_rows: 41726, N_test_frac: 0.2,\n R2_test: {r2_test:.3f}, R2_train: {r2_train:.3f},\n MAE_test: {round(mae_test)}, MAE_train: {round(mae_train)}', 
+                fontsize=7,           # Font size
+                color='green',       # Font color
+                #fontname='Arial',      # Font family
+                fontstyle='italic')    # Font style (optional, e.g., 'italic')
+                #fontweight='bold'  )
 
-            
-           
+        plt.show()
+
+
+
+        
         
 
 if __name__ == "__main__":
