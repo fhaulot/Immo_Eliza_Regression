@@ -40,7 +40,7 @@ After reading csv file we discard the following parameters/columns:
 ID, URL, Locality, Municipality, Price per square meter.
 These parameters have no value in regard to the ML techniques,
 since they are either strings duplicated in other variables or
-depend on the predicted variable (price per m2 depends was calculated using total price).
+depend on the predicted variable (price per m2 was calculated using total price).
 Next, we converted the following parameters to a sequence of numbers:
 Building condition and EPC score, thus treating these variables as categorial ordered parameters.
 Logical parameters: Has terrace, Has parking have been converted to 0 (=No) or 1 (=Yes).
@@ -49,17 +49,18 @@ Next we identified 3 groups of parameters that are related to each other:
 1) Has garden, Garden surface,
 2) Type and Subtype
 3) Postcode, Region, Province.
+
 Only one parameter should be chosen for model training from each group.
-As shown in put presentation, we evaluated how much each parameter improves the fit
+As shown in their presentation, we evaluated how much each parameter improves the fit
 based on the linear regression model, and retained the best one in each group.
 Postcodes have been converted to latitude and longitude using a table we found on the internet.
 
 The resulting parameters used in our 4 models are:
-Garden surface, Ubtype, Province, Bedroom count, Habitable surface,
+Garden surface, Subtype, Province, Bedroom count, Habitable surface,
 Has terrace, Has parking, Building condition, EPC score.
 
 ## Slides description
-In the Kriek_Immo_eliza_regression.pdf. This is the presentation we made in front of the group. This is useful to have a better visualisation with the plots we have made. 
+In the Kriek_Immo_eliza_regression.pdf. you will find the slides of the presentation we made in front of the group. This is useful to have a better visualisation with the plots we have made. 
 
 The first slide outlines the progressive construction of a linear regression model by evaluating which variables to include or exclude and how their inclusion affects model performance.
 
