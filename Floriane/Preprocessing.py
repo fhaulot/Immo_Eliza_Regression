@@ -23,7 +23,7 @@ class Preprocessing :
         """
         Drop specified columns from the DataFrame.
         """
-        Col_to_drop = ["id", "url", 'locality', "MunicipalityCleanName", "province", "region", "price_square_meter"]
+        Col_to_drop = ["id", "url", 'locality', "MunicipalityCleanName", "price_square_meter", "hasGarden", "type", "postcode", "region"]
         cleaned_columns = df.drop(columns=Col_to_drop, axis=0)
         print(cleaned_columns.info())
         return cleaned_columns

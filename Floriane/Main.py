@@ -1,4 +1,4 @@
-from pipeline import Preprocessing
+from Preprocessing import Preprocessing
 import pandas as pd
 
 # This script is used to preprocess the data before running the regression models.
