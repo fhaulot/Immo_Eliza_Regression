@@ -4,7 +4,7 @@
 
 The application tests 4 machine learning algorithms to predict
 property prices in Belgium based on scraping of one on-line immo agency.
-The input data is contained in a csv file (Floriane\cleaned_data.csv).
+The input data is contained in a csv file (cleaned_data.csv).
 In the process of creating models, the sample is split in two parts : the training and the verification/testing part (using 4:1 ratio).
 Each model is trained (calibrated) using the training set.
 The solution is then applied to the testing set to predict the prices of both sets.
