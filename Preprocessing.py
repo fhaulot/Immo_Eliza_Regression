@@ -23,7 +23,7 @@ class Preprocessing :
         """
         Drop specified columns from the DataFrame.
         """
-        Col_to_drop = ["id", "url", 'locality', "MunicipalityCleanName", "price_square_meter", "hasGarden", "type", "postcode", "region"]
+        Col_to_drop = ["id", "url", 'locality', "MunicipalityCleanName", "price_square_meter", "hasGarden", "type", "region"]
         cleaned_columns = df.drop(columns=Col_to_drop, axis=0)
         print(cleaned_columns.info())
         return cleaned_columns
@@ -48,7 +48,7 @@ class Preprocessing :
         """
         Perform categorical encoding on specified columns.
         """
-        df_encoded = pd.get_dummies(df, columns=["type", "subtype"], drop_first=True)
+        df_encoded = pd.get_dummies(df, columns=["province", "subtype"], drop_first=True)
         bool_cols = df_encoded.select_dtypes(include=["bool"]).columns
         df_encoded[bool_cols] = df_encoded[bool_cols].astype(int)
         return df_encoded
@@ -57,7 +57,7 @@ class Preprocessing :
         """
         Add geographical coordinates (latitude and longitude) to the DataFrame based on postcodes.
         """
-        df_postcode = pd.read_csv(r'C:\Users\fhaul\Documents\GitHub\Immo_Eliza_Regression\Floriane\belgian-cities-geocoded (1).csv')
+        df_postcode = pd.read_csv(r'C:\Users\fhaul\Documents\GitHub\Immo_Eliza_Regression\belgian-cities-geocoded (1).csv')
         df_postcode = df_postcode.astype({'postCode': 'int64'})
         # df_postcode.info()
         df

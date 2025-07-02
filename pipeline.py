@@ -9,7 +9,7 @@ from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.impute import SimpleImputer
 
 # Reading new file
-df = pd.read_csv(r"C:\Users\fhaul\Documents\GitHub\Immo_Eliza_Regression\Dogs Data\preprocessed_data.csv")  
+df = pd.read_csv(r"C:\Users\fhaul\Documents\GitHub\Immo_Eliza_Regression\preprocessed_data.csv")  
 
 # Ensure 'price' is the target variable and drop it from features
 X = df.drop("price", axis=1)  
