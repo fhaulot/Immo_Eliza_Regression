@@ -27,6 +27,8 @@ You may find the environment in the requirements.txt file
 
 ## Usage
 
+The Dogs Data folder contains the dataset used for this project. 
+
 - Running Preprocessed.py to eliminate Nan and set the parameters
 - Running Main.py to apply the preprocessing on the cleaned_data.csv file
 - Running pipeline.py to predict price with different models
